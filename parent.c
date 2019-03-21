@@ -23,7 +23,7 @@ struct msg {
 // Implementation of the function that initializes the semaphore
 int init_sem (int semid, int valor){
         if (semctl(semid, 0, SETVAL, valor)==-1){
-                perror("Error al inicializar el semaforo");
+                perror("Error initializing semaphore");
                 return -1;
         }
         return 0;
@@ -34,7 +34,7 @@ int wait_sem(int semid) {
 	struct sembuf op[1] = {{.sem_num=0, .sem_op=-1, .sem_flg= SEM_UNDO}};
 	while (semop(semid, op, 1) == -1){
 		if (errno != EINTR) {
-			perror("Error en la operacion wait_sem");
+			perror("Error executing wait_sem");
 			return -1;
 		}
 	}
@@ -46,7 +46,7 @@ int signal_sem (int semid) {
       struct sembuf op[1] = {[0].sem_num=0, [0].sem_op=1, [0].sem_flg= SEM_UNDO};
 
         if (semop(semid, op, 1) == -1){
-                perror("Error en la operacion signal_sem");
+                perror("Error executing signal_sem");
                 return -1;
         }
         return 0;
@@ -56,41 +56,41 @@ int signal_sem (int semid) {
 int init_IPC(key_t *key, int *queueid, int *shmid, int *semid, FILE **result, pid_t **children_pid, int init_proc_number,int (*barrera)[], char *filename, char *filepath){
 	// Create a new key
 	if((*key=ftok(filename,'X'))==-1){
-		perror("Error al crear la llave");
+		perror("Error creating the key");
 		return -1;
 	}
         // Get message queue for a given key
         if ((*queueid=msgget(*key, IPC_CREAT | 0600)) ==-1) {
-                perror("Error al crear la cola de mensages");
+                perror("Error creating the message queue");
                 return -1;
         }
         // Get share memory ID for a given key
         if ((*shmid = shmget(*key, init_proc_number*sizeof(pid_t), IPC_CREAT | 0600)) == -1) {
-		perror("Error al crear el area de memoria compartida hijo");
+		perror("Error creating shared memory area");
 		return -1;
 	}
         // Attach share memory to desired variable
         if ((*children_pid = (pid_t *) shmat(*shmid,0,0)) == ((void *) -1)) {
-		perror("Error al asociar memoria compartida");
+		perror("Error attaching sahred memory area");
 		return -1;
 	}
         // Get and initialize semaphore for a given key
         if ((*semid=semget(*key, 1, IPC_CREAT| 0600))==-1){
-                perror("Error al crear el semaforo");
+                perror("Error creating semaphore");
                 return -1;
         }
 	if(init_sem(*semid,1) == -1){
-		perror("Error al inicializar el semáforo");
+		perror("Error initializing the semaphore");
 		return -1;
 	}
 	// Pipe creation
 	if (pipe(*barrera) == -1){
-		perror ("Error al crear la tubería");
+		perror ("Error creating the pipe");
 		return -1;
 	}
 	// Open FIFO file
 	if ((*result = fopen(filepath,"w")) == NULL)  {
-		perror("Error al abrir el fichero fifo");
+		perror("Error opening fifo file");
 		return -1;
 	}
         return 0;
@@ -99,25 +99,25 @@ int init_IPC(key_t *key, int *queueid, int *shmid, int *semid, FILE **result, pi
 //This funtion closes the IPC systems
 void close_IPC(int queueid, int shmid, int semid, pid_t *children_pid, int barrera[2], FILE *result) {
 	if(msgctl(queueid, IPC_RMID,NULL) != 0) {
-		perror("Error al cerrar la cola de mensajes");
+		perror("Error closing message queue");
 	}
 	if(shmdt(children_pid) == -1) {
-		perror("Error al desasociar la memoria compartida");
+		perror("Error detaching shared memory area");
 	}
 	if(shmctl(shmid, IPC_RMID,0) == -1) {
-		perror("Error al cerrar la región de memoria compartida");
+		perror("Error removing shared memory");
 	}
 	if(semctl(semid, IPC_RMID,0) == -1) {
-		perror("Error al cerrar el semaforo");
+		perror("Error closing semaphore");
 	}
 	if(close(barrera[0]) == -1) {
-		perror("Error al cerrar la tubería (lado lectura)");
+		perror("Error closing pipe (reader)");
 	}
 	if(close(barrera[1]) == -1) {
-		perror("Error al cerrar la tubería (lado escritura)");
+		perror("Error closing pipe (writer)");
 	}
 	if(fclose(result) != 0) {
-		perror("Error al cerra el fichero FIFO");
+		perror("Error closing file FIFO");
 	}
 }
 
@@ -125,10 +125,10 @@ void close_IPC(int queueid, int shmid, int semid, pid_t *children_pid, int barre
 int parse_arguments(int *init_proc_number, int argc, char *proc_numb_str){
 
 	if ((argc) != 4){
-		perror ("El número de argumentos es erróneo.");
+		perror ("Illegal number of arguments.");
                 return -1;
         } else if (sscanf (proc_numb_str, "%d", init_proc_number)  != 1){
-		perror ("Alguno de los argumentos no tiene formato numérico esperado.");
+		perror ("Some arguments do not match the specified numeric format.");
 		return -1;            
 	} else {
 	return 0;
@@ -148,7 +148,7 @@ int create_children(int fd, int key, int init_proc_number, int semid, pid_t *chi
 	}
 	for (int i = 0; i < init_proc_number; i++){
 		if ((child_pid=fork()) == -1){
-			printf("Error en la ejecución del fork");
+			printf("Error executing fork");
 			exit(-1);
 		} else if (child_pid == 0) {
 			dup2(fd, STDIN_FILENO);
@@ -167,7 +167,7 @@ int create_children(int fd, int key, int init_proc_number, int semid, pid_t *chi
 int syncronize_begining (int fd, int number_of_processes) {
 	for (int i = 0; i < number_of_processes; i++){
 		if (write(fd, "K" , 1) != 1){
-			perror("write no escribió bien\n");
+			perror("Error writing in the pipe\n");
 		}
 	}
 	return 0;
@@ -184,11 +184,11 @@ pid_t kill_process(pid_t child_pid, pid_t *children_pid, int semid, int init_pro
 	for (int i = 0; i < init_processes; i++){
 		if ( ((children_pid[i] == child_pid) && (flag == 0)) || ((children_pid[i] != 0) && (flag == 1)) ){
 			if (kill(children_pid[i], SIGTERM) != 0) {
-				perror("Error al enviar la señal SIGTERM");
+				perror("Error sending SIGTERM");
 				return -1;
 			}
 			if (wait(NULL) != children_pid[i]) {
-				perror("Error. No se ha terminado el proceso indicado");
+				perror("Error finishing child process");
 				return -1;
 			}
 			killed_pid = children_pid[i];
@@ -211,7 +211,7 @@ int receive_result(int semid, int queueid, int current_processes, int init_proce
 
 	for (int i = 0; i < current_processes; i++){
 		if(msgrcv(queueid, &message, length, 0, 0)==-1){
-			perror("Error al recibir el mensaje");
+			perror("Error receiving message");
 			return -1;
 		}
 		if (message.type == KO_MSG){
@@ -229,12 +229,12 @@ int print_result(pid_t *children_pid, int semid, int current_processes, int init
 	pid_t winner;
 	
 	if (current_processes == 0){
-		fprintf(resultado,"Fin de la partida: Empate\n");
+		fprintf(resultado,"End of the game: Tie\n");
 	} else {
 		if((winner = kill_process(0, children_pid, semid, init_proc_number, 1)) == -1) {
 			return -1;
 		}
-		fprintf(resultado,"Fin de la partida: El hijo %ld ha ganado.\n", (long) winner);
+		fprintf(resultado,"End of the game: Child %ld has won.\n", (long) winner);
 	}
 	return 0;
 }
@@ -246,7 +246,7 @@ int start_game (int init_proc_number, int fd, int queueid, pid_t *children_pid, 
 	int round = 1;
 	
 	while (current_processes >= 2){
-		printf("Iniciando ronda de ataques numero %d. Hay %d hijos vivos.\n", round,current_processes);
+		printf("Initiating attack round number %d. There are %d children.\n", round,current_processes);
 		fflush(stdout);
 		// Start the round
 		if(syncronize_begining(fd, current_processes) != 0) {

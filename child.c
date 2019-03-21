@@ -33,7 +33,7 @@ pid_t mypid;
 // Implementation of the function that initializes the semaphore
 int init_sem(int semid, int valor) {
 	if (semctl(semid, 0, SETVAL, valor) == -1){
-		perror("Error al inicializar el semaforo");
+		perror("Error initializing the semaphore");
 		return -1;
 	}
 	return 0;
@@ -44,7 +44,7 @@ int wait_sem(int semid) {
 	struct sembuf op[1] = {{.sem_num=0, .sem_op=-1, .sem_flg= SEM_UNDO}};
 	while (semop(semid, op, 1) == -1){
 		if (errno != EINTR) {
-			perror("Error en la operacion wait_sem");
+			perror("Error executing wait_sem");
 			return -1;
 		}
 	}
@@ -55,7 +55,7 @@ int wait_sem(int semid) {
 int signal_sem(int semid) {
 	struct sembuf op[1] = {{.sem_num=0, .sem_op=1, .sem_flg= SEM_UNDO}};
 	if (semop(semid, op, 1) == -1){
-		perror("Error en la operacion signal_sem");
+		perror("Error executing signal_sem");
 		return -1;
 	}
 	return 0;
@@ -63,14 +63,14 @@ int signal_sem(int semid) {
 
 // Handler for SIGUSR1 signal. Defence mode.
 void defensa(int sig, siginfo_t *info, void *context) {
-	printf ("El hijo %ld ha repelido el ataque de %ld.\n", (long) mypid, (long) info->si_pid);
+	printf ("The child  %ld has repelled the atack from %ld.\n", (long) mypid, (long) info->si_pid);
 	fflush(stdout);
 	strcpy(state, SUCCESS_STATE);
 }
 
 // Handler for SIGUSR1 signal. Attack mode.
 void indefenso(int sig, siginfo_t *info, void *context) {
-	printf("El hijo %ld ha sido emboscado por %ld mientras realizaba un ataque.\n", (long) mypid, (long) info->si_pid);
+	printf("The child  %ld has benn ambushed by %ld while he was trying to attack.\n", (long) mypid, (long) info->si_pid);
 	fflush(stdout);
 	strcpy(state, FAILURE_STATE);
 }
@@ -81,25 +81,25 @@ int init_IPC(key_t key, int *queueid, int *semid, pid_t **children_pid, int init
 
 	// Get message queue for a given key
 	if ((*queueid=msgget(key, IPC_CREAT | 0600))==-1) {
-		perror("Error al crear la cola de mensages");
+		perror("Error creating the queue");
 		return -1;
 	}
 	
 	// Get share memory ID for a given key
 	if ((shmid = shmget(key, init_proc_number*sizeof(pid_t), IPC_CREAT | 0600)) == -1) {
-		perror("Error al crear el area de memoria compartida hijo");
+		perror("Error creating shared memory area");
 		return -1;
 	 }
 
 	// Attach share memory to desired variable
 	if ((*children_pid = (pid_t *) shmat(shmid,0,0)) == ((void *) -1)) {
-		perror("Error al asociar memoria compartida");
+		perror("Error attaching shared memory");
 		return -1;
 	}
 
 	// Get semaphore for a given key
 	if ((*semid=semget(key, 1, IPC_CREAT| 0600)) == -1) {
-		perror("Error al crear el semaforo");
+		perror("Error creating semaphore");
 		return -1;
 	}
 	return 0;
@@ -115,7 +115,7 @@ int mysleep(long ntime) {
 		if (errno == EINTR) {
 			req.tv_nsec = rem.tv_nsec;
 		} else {
-			perror("Error en el sleep");
+			perror("Error executing sleep");
 			return -1;
 		}
 	}
@@ -126,10 +126,10 @@ int mysleep(long ntime) {
 int defence( struct sigaction *act) {
 	act->sa_sigaction = defensa;	
 	if (sigaction(SIGUSR1, act, NULL) != 0) {
-		perror("Error al asignar manejador de señal");
+		perror("Error assigning signal handler");
 		return -1;
 	}
-	printf("El hijo %ld decide defenderse.\n", (long) mypid);
+	printf("Child  %ld decides to select defense mode.\n", (long) mypid);
 	fflush(stdout);
 	if(mysleep(LONG_WAIT) != 0 ){
 		return -1;
@@ -143,10 +143,10 @@ int attack(int semid, int init_proc_number, pid_t *children_pid, struct sigactio
 	act->sa_sigaction = indefenso;
 	// Begin the defence, selecting "defensa" handler.
 	if (sigaction(SIGUSR1, act, NULL) != 0){
-		perror("Error al asignar manejador de señal");
+		perror("Error assigning signal handler");
 		return -1;
 	}
-	printf("El hijo %ld decide atacar.\n", (long) mypid);
+	printf("Child %ld decides to attack.\n", (long) mypid);
 	fflush(stdout);
 	if(mysleep(SHORT_WAIT) != 0 ){
 		return -1;
@@ -161,11 +161,11 @@ int attack(int semid, int init_proc_number, pid_t *children_pid, struct sigactio
 	if (signal_sem(semid) != 0) {
 		return -1;
 	}
-	printf("El hijo %ld ataca a %d.\n", (long) mypid, attackto);
+	printf("Child %ld attacks to %d.\n", (long) mypid, attackto);
 	fflush(stdout);
 	// Send signal no the attacked process			
 	if (kill (attackto, SIGUSR1) != 0) {
-		perror("Error al mandar la señal");				
+		perror("Error sending signal");				
 		return -1;
 	}			
 	if(mysleep(SHORT_WAIT) != 0 ){
@@ -184,7 +184,7 @@ void start_children_game(int queueid, int semid, pid_t *children_pid, int init_p
 	while (1) {
 		// Read a byte from the pipe (redirected to stdin) to synchronize processes
 		if (read(STDIN_FILENO, control, 1) != 1) {
-			perror (" Error al leer de la tuberia");
+			perror ("Error reading the pipe ");
 			exit(-1);
 		}
 		strcpy(state,"");
@@ -202,7 +202,7 @@ void start_children_game(int queueid, int semid, pid_t *children_pid, int init_p
 		// Send message to the father, indicating the outcome of the battle
 		message.type = strcmp(state, FAILURE_STATE) == 0 ? KO_MSG : OK_MSG;
 		if (msgsnd(queueid, &message, message_length, 0) == -1) {
-			perror("Error al enviar el mensaje");
+			perror("Error sending the  message");
 			exit (-1);
 		}
 	}
@@ -213,10 +213,10 @@ int parse_arguments(key_t *key, int *init_proc_number, int argc, char *argv[]){
 	long temp_key;
 
 	if (argc != 3){
-		perror ("El número de argumentos es erróneo.");
+		perror ("Illegal number of arguments.");
 		return -1;		
 	} else if (sscanf (argv[1], "%ld", &temp_key) != 1|| sscanf (argv[2], "%d", init_proc_number) != 1){
-		perror ("Alguno de los argumentos no tiene formato numérico esperado.");
+		perror ("Some arguments do not match the specified numeric format");
 		return -1;		
 	} else {
 		*key = (key_t) temp_key;
